@@ -5,62 +5,94 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EN-VI Translator</title>
-    <!-- Thêm đường dẫn đến thư viện FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
-    <link rel="stylesheet" href="style.css">
+    <style>
+        .body_div {
+            text-align: center;
+            padding: 20px;
+        }
 
-
+        #input-text,
+        #extract-text {
+            font-family: 'Roboto', sans-serif;
+            font-size: 18px;
+            width: 300px;
+            overflow: hidden;
+            resize: none;
+        }
+    </style>
 </head>
 
 <body>
-    <div>
-        <label for="source-lang">Source Language:</label>
-        <select id="source-lang" name="source-lang">
-            <option value="en">English</option>
-            <option value="vi">Vietnamese</option>
-        </select>
-    </div>
-    <div>
-        <label for="target-lang">Target Language:</label>
-        <select id="target-lang" name="target-lang">
-            <option value="vi">Vietnamese</option>
-            <option value="en">English</option>
-        </select>
-    </div>
+    <h1 style="text-align: center;">EN-VI Translator</h1>
 
-    <div>
-        <!-- Thêm icon mic và loa -->
-        <div style="position: relative;">
-            <textarea id="input-text" rows="4" cols="50" placeholder="Enter text"></textarea>
-            <span style="position: absolute; right: 10px; bottom: 10px;">
-                <i id="mic-icon" class="fas fa-microphone"></i> <!-- Biểu tượng mic -->
-                <i id="speaker-icon" class="fas fa-volume-up"></i> <!-- Biểu tượng loa -->
-            </span>
+    <div class="body_div">
+        <div>
+            <label for="source-lang">Source language:</label>
+            <select id="source-lang" name="source-lang">
+                <option value="en">English</option>
+                <option value="vi">Vietnamese</option>
+            </select>
         </div>
-    </div>
-    <div>
-        <button id="translate-button">Translate</button>
-    </div>
-    <div>
-        <p>Translated Text:</p>
-        <div style="border: 1px solid #ccc; padding: 10px;">
-            <p id="translated-text"></p> <!-- Hiển thị văn bản dịch ở đây -->
+        <div>
+            <label for="target-lang">Target language:</label>
+            <select id="target-lang" name="target-lang">
+                <option value="vi">Vietnamese</option>
+                <option value="en">English</option>
+            </select>
         </div>
+
+        <br>
+        <div>
+            <div>
+                <textarea id="input-text" rows="3" placeholder="Enter text ..." oninput="autoResize(this)"></textarea>
+            </div>
+        </div>
+        <div>
+            <i id="mic-icon" class="fas fa-microphone" style="margin-right: 30px;"></i>
+            <button id="translate-button" style="margin-top: 10px;">Translate</button>
+            <i id="speaker-icon" class="fas fa-volume-up" style="margin-left: 30px;"></i>
+        </div>
+        <br>
+        <div
+            style="border: 1px solid #0b0a0a; padding: 10px; width: 300px; height: auto; border-radius: 5px; margin: 0 auto; text-align: center; background-color: white; font-family: 'Roboto', sans-serif; font-size: 18px;">
+            <p id="translated-text"></p>
+        </div>
+        <div style="margin-top: 10px;">
+            <i id="arrow-down-icon" class="fas fa-arrow-down" style="cursor: pointer;"></i>
+        </div>
+        <br>
+        <div>
+            <label for="extract-text">Entity Extraction:</label>
+            <br>
+            <textarea id="extract-text" rows="3" col="40" placeholder="Enter text ..."
+                oninput="autoResize(this)"></textarea>
+            <!-- <input type="text" id="extract-text" placeholder="Enter text for entity extraction"> -->
+        </div>
+        <div>
+            <button id="extract-entities-button" style="margin-top: 10px;">Extract Entities</button>
+        </div>
+        <div id="extracted-entities" style="margin-top: 10px;"></div>
     </div>
 
     <script>
+        function autoResize(textarea) {
+            textarea.style.height = "auto";
+            textarea.style.height = (textarea.scrollHeight) + "px";
+        }
+
         const sourceLangSelect = document.getElementById("source-lang");
         const targetLangSelect = document.getElementById("target-lang");
+        const extractEntitiesButton = document.getElementById("extract-entities-button");
+        const extractedEntitiesDiv = document.getElementById("extracted-entities");
+        const extractTextInput = document.getElementById("extract-text");
 
         // Xử lý sự kiện khi thay đổi ngôn ngữ nguồn
         sourceLangSelect.addEventListener("change", function () {
             const sourceLang = sourceLangSelect.value;
-            // Tự động chuyển đổi ngôn ngữ đích dựa trên ngôn ngữ nguồn
             const autoTargetLang = sourceLang === "en" ? "vi" : "en";
-            // Cập nhật ngôn ngữ đích và hiển thị tương ứng
             targetLangSelect.value = autoTargetLang;
-            // Cập nhật nội dung navbar của ngôn ngữ đích
             updateTargetLangNavbar(autoTargetLang);
         });
 
@@ -79,7 +111,6 @@
             const targetLang = targetLangSelect.value;
             const inputText = document.getElementById("input-text").value;
 
-            // Send a request to the server to perform translation
             fetch(`/translate?source_lang=${sourceLang}&target_lang=${targetLang}&text=${inputText}`)
                 .then(response => response.text())
                 .then(translatedText => {
@@ -87,25 +118,22 @@
                 });
         });
 
-        // Xử lý sự kiện nhấp chuột vào biểu tượng mic
         const micIcon = document.getElementById("mic-icon");
         micIcon.addEventListener("click", function () {
-            const sourceLang = sourceLangSelect.value;  // Lấy giá trị source_lang
-            // Gửi yêu cầu để thực hiện ghi âm và dự đoán văn bản
+            const sourceLang = sourceLangSelect.value;
             fetch(`/record_and_predict?source_lang=${sourceLang}`)
                 .then(response => response.text())
                 .then(transcription => {
                     document.getElementById("input-text").value = transcription;
+                    autoResize(document.getElementById("input-text"));
                 });
         });
 
-        // Xử lý sự kiện nhấp chuột vào biểu tượng loa
         const speakerIcon = document.getElementById("speaker-icon");
         speakerIcon.addEventListener("click", function () {
             const translatedText = document.getElementById("translated-text").textContent;
             const targetLang = targetLangSelect.value;
 
-            // Nếu ngôn ngữ đích là tiếng Anh, gửi yêu cầu để đọc tiếng Anh bằng giọng nói
             if (targetLang === "en") {
                 fetch("/speak_english?text=" + encodeURIComponent(translatedText))
                     .then(response => response.blob())
@@ -117,7 +145,6 @@
                         console.error("Error:", error);
                     });
             } else {
-                // Ngược lại, gửi yêu cầu để đọc văn bản đã dịch bằng giọng nói tiếng Việt
                 fetch(`/speak?text=${encodeURIComponent(translatedText)}`)
                     .then(response => response.blob())
                     .then(blob => {
@@ -130,7 +157,30 @@
             }
         });
 
+        extractEntitiesButton.addEventListener("click", function () {
+            const targetLang = targetLangSelect.value;
+            const textToExtract = extractTextInput.value.trim();
 
+            fetch(`/extract_entities?text=${encodeURIComponent(textToExtract)}&target_lang=${targetLang}`)
+                .then(response => response.json())
+                .then(entities => {
+                    extractedEntitiesDiv.innerHTML = "<p><strong>Extracted Entities:</strong></p>";
+                    entities.forEach(([entity, value]) => {
+                        const shortEntity = entity.startsWith("B-") || entity.startsWith("I-") ? entity.slice(2) : entity;
+                        extractedEntitiesDiv.innerHTML += `<p>${shortEntity}: ${value}</p>`;
+                    });
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                });
+        });
+
+        const arrowDownIcon = document.getElementById("arrow-down-icon");
+        arrowDownIcon.addEventListener("click", function () {
+            const translatedText = document.getElementById("translated-text").textContent;
+            document.getElementById("extract-text").value = translatedText;
+            autoResize(document.getElementById("extract-text"));
+        });
 
     </script>
 </body>

@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template, Response, jsonify
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Wav2Vec2Processor, Wav2Vec2ForCTC, Wav2Vec2ForCTC, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Wav2Vec2Processor, Wav2Vec2ForCTC, Wav2Vec2ForCTC, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan, AutoModelForTokenClassification, pipeline
 from datasets import load_dataset
 import sounddevice as sd
 import soundfile as sf
@@ -29,6 +29,20 @@ model_tts_en = SpeechT5ForTextToSpeech.from_pretrained(
     "microsoft/speecht5_tts")
 embeddings_dataset = load_dataset(
     "Matthijs/cmu-arctic-xvectors", split="validation")
+vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
+
+ner_tokenizer_vi = AutoTokenizer.from_pretrained(
+    "NlpHUST/ner-vietnamese-electra-base")
+ner_model_vi = AutoModelForTokenClassification.from_pretrained(
+    "NlpHUST/ner-vietnamese-electra-base")
+ner_pipeline_vi = pipeline("ner", model=ner_model_vi,
+                           tokenizer=ner_tokenizer_vi)
+
+ner_tokenizer_en = AutoTokenizer.from_pretrained("dslim/bert-base-NER")
+ner_model_en = AutoModelForTokenClassification.from_pretrained(
+    "dslim/bert-base-NER")
+ner_pipeline_en = pipeline("ner", model=ner_model_en,
+                           tokenizer=ner_tokenizer_en)
 
 
 @app.route("/")
@@ -127,7 +141,6 @@ def speak_english():
     spectrogram = model_tts_en.generate_speech(
         inputs["input_ids"], speaker_embeddings)
 
-    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
     with torch.no_grad():
         speech = vocoder(spectrogram)
 
@@ -142,5 +155,48 @@ def speak_english():
     return Response(audio_data, mimetype="audio/wav")
 
 
+@app.route("/extract_entities")
+def extract_entities():
+    text = request.args.get("text")
+    # Thực hiện trích xuất thực thể từ văn bản
+    entities = extract_entities_from_text(text)
+    return jsonify(entities)
+
+
+def extract_entities_from_text(text):
+    target_lang = request.args.get("target_lang")
+
+    if target_lang == "vi":
+        ner_results = ner_pipeline_vi(text)
+    elif target_lang == "en":
+        ner_results = ner_pipeline_en(text)
+
+    extracted_entities = []
+    current_entity = None
+    current_tokens = []
+
+    for result in ner_results:
+        word = result['word']
+        entity = result['entity']
+        if entity.startswith("B-"):
+            if current_entity is not None:
+                entity_string = ' '.join(current_tokens)
+                if entity_string:
+                    extracted_entities.append(
+                        (current_entity[2:], entity_string))
+            current_entity = entity
+            current_tokens = [word]
+        else:
+            current_tokens.append(word)
+
+    if current_entity is not None:
+        entity_string = ' '.join(current_tokens)
+        if entity_string:
+            extracted_entities.append(
+                (current_entity[2:], entity_string))
+
+    return extracted_entities
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
